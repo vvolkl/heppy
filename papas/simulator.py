@@ -1,6 +1,9 @@
-from heppy.papas.propagator import StraightLinePropagator, HelixPropagator
-from heppy.papas.pfobjects import Cluster, SmearedCluster, SmearedTrack
-from heppy.papas.pfobjects import Particle as PFSimParticle
+from propagator import StraightLinePropagator, HelixPropagator
+from pfobjects import Cluster, SmearedCluster, SmearedTrack
+from pfobjects import Particle as PFSimParticle
+import multiple_scattering as mscat  
+from pfalgo.pfinput import  PFInput
+from papas_exceptions import SimulationError
 
 from pfalgo.sequence import PFSequence
 import random
@@ -10,15 +13,18 @@ import shelve
 
 from ROOT import TVector3
 
+
 def pfsimparticle(ptc):
     '''Create a PFSimParticle from a particle.
     The PFSimParticle will have the same p4, vertex, charge, pdg ID.
     '''
     tp4 = ptc.p4()
-    vertex = TVector3()
+    vertex = ptc.start_vertex().position()
     charge = ptc.q()
     pid = ptc.pdgid()
-    return PFSimParticle(tp4, vertex, charge, pid) 
+    simptc = PFSimParticle(tp4, vertex, charge, pid)
+    simptc.gen_ptc = ptc
+    return simptc
 
 class Simulator(object):
 
@@ -63,19 +69,34 @@ class Simulator(object):
         if size is None:
             size = detector.cluster_size(ptc)
         cylname = detector.volume.inner.name
-        cluster =  Cluster(ptc.p4().E()*fraction,
-                           ptc.points[cylname],
-                           size,
-                           cylname, ptc)
+        if not cylname in ptc.points:
+            # TODO Colin particle was not extrapolated here...
+            # issue must be solved!
+            errormsg = '''
+SimulationError : cannot make cluster for particle: 
+particle: {ptc}
+with vertex rho={rho:5.2f}, z={zed:5.2f}
+cannot be extrapolated to : {det}\n'''.format( ptc = ptc,
+                                               rho = ptc.vertex.Perp(),
+                                               zed = ptc.vertex.Z(),
+                                               det = detector.volume.inner )
+            self.logger.warning(errormsg)
+            raise SimulationError('Particle not extrapolated to the detector, so cannot make a cluster there. No worries for now, problem will be solved :-)')
+        cluster =  Cluster( ptc.p4().E()*fraction,
+                            ptc.points[cylname],
+                            size,
+                            cylname, ptc)
         ptc.clusters[cylname] = cluster
         return cluster
 
-    def smear_cluster(self, cluster, detector, accept=False):
+
+    def smear_cluster(self, cluster, detector, accept=False, acceptance=None):
         '''Returns a copy of self with a smeared energy.  
         If accept is False (default), returns None if the smeared 
         cluster is not in the detector acceptance. '''
-        eres = detector.energy_resolution(cluster.energy)
-        energy = cluster.energy * random.gauss(1, eres)
+        eres = detector.energy_resolution(cluster.energy, cluster.position.Eta())
+        response = detector.energy_response(cluster.energy, cluster.position.Eta())
+        energy = cluster.energy * random.gauss(response, eres)
         smeared_cluster = SmearedCluster( cluster,
                                           energy,
                                           cluster.position,
@@ -83,7 +104,8 @@ class Simulator(object):
                                           cluster.layer,
                                           cluster.particle )
         # smeared_cluster.set_energy(energy)
-        if detector.acceptance(smeared_cluster) or accept:
+        det = acceptance if acceptance else detector
+        if det.acceptance(smeared_cluster) or accept:
             return smeared_cluster
         else:
             return None
@@ -135,30 +157,57 @@ class Simulator(object):
         '''Simulate a hadron, neutral or charged.
         ptc should behave as pfobjects.Particle.
         '''
+        #implement beam pipe scattering
+        
         ecal = self.detector.elements['ecal']
-        hcal = self.detector.elements['hcal']        
+        hcal = self.detector.elements['hcal']
+        beampipe = self.detector.elements['beampipe']        
         frac_ecal = 0.
+        
+        self.propagator(ptc).propagate_one(ptc,
+                                           beampipe.volume.inner,
+                                           self.detector.elements['field'].magnitude)
+        
+        self.propagator(ptc).propagate_one(ptc,
+                                           beampipe.volume.outer,
+                                           self.detector.elements['field'].magnitude)
+        
+        mscat.multiple_scattering( ptc, beampipe, self.detector.elements['field'].magnitude )
+            
+        #re-propagate after multiple scattering in the beam pipe
+        #indeed, multiple scattering is applied within the beam pipe,
+        #so the extrapolation points to the beam pipe entrance and exit
+        #change after multiple scattering.
+        self.propagator(ptc).propagate_one(ptc,
+                                           beampipe.volume.inner,
+                                           self.detector.elements['field'].magnitude)
+        self.propagator(ptc).propagate_one(ptc,
+                                           beampipe.volume.outer,
+                                           self.detector.elements['field'].magnitude)
+                                           
         self.propagator(ptc).propagate_one(ptc,
                                            ecal.volume.inner,
                                            self.detector.elements['field'].magnitude)
-        path_length = ecal.material.path_length(ptc)
-        if path_length<sys.float_info.max:
-            # ecal path length can be infinite in case the ecal
-            # has lambda_I = 0 (fully transparent to hadrons)
-            time_ecal_inner = ptc.path.time_at_z(ptc.points['ecal_in'].Z())
-            deltat = ptc.path.deltat(path_length)
-            time_decay = time_ecal_inner + deltat
-            point_decay = ptc.path.point_at_time(time_decay)
-            ptc.points['ecal_decay'] = point_decay
-            if ecal.volume.contains(point_decay):
-                frac_ecal = random.uniform(0., 0.7)
-                cluster = self.make_cluster(ptc, 'ecal', frac_ecal)
-                # For now, using the hcal resolution and acceptance
-                # for hadronic cluster
-                # in the ECAL. That's not a bug! 
-                smeared = self.smear_cluster(cluster, hcal)
-                if smeared:
-                    ptc.clusters_smeared[smeared.layer] = smeared
+        if 'ecal_in' in ptc.path.points:
+            # doesn't have to be the case (long-lived particles)
+            path_length = ecal.material.path_length(ptc)
+            if path_length<sys.float_info.max:
+                # ecal path length can be infinite in case the ecal
+                # has lambda_I = 0 (fully transparent to hadrons)
+                time_ecal_inner = ptc.path.time_at_z(ptc.points['ecal_in'].Z())
+                deltat = ptc.path.deltat(path_length)
+                time_decay = time_ecal_inner + deltat
+                point_decay = ptc.path.point_at_time(time_decay)
+                ptc.points['ecal_decay'] = point_decay
+                if ecal.volume.contains(point_decay):
+                    frac_ecal = random.uniform(0.,0.7)
+                    cluster = self.make_cluster(ptc, 'ecal', frac_ecal)
+                    # For now, using the hcal resolution and acceptance
+                    # for hadronic cluster
+                    # in the ECAL. That's not a bug! 
+                    smeared = self.smear_cluster(cluster, hcal, acceptance=ecal)
+                    if smeared:
+                        ptc.clusters_smeared[smeared.layer] = smeared
         cluster = self.make_cluster(ptc, 'hcal', 1-frac_ecal)
         smeared = self.smear_cluster(cluster, hcal)
         if smeared:
@@ -189,7 +238,18 @@ class Simulator(object):
         smeared = copy.deepcopy(ptc)
         return smeared
     
-    def simulate(self, ptcs):
+    def propagate_muon(self, ptc):
+        self.propagate(ptc)
+        return 
+    
+    def propagate_electron(self, ptc):
+        ecal = self.detector.elements['ecal']
+        self.prop_helix.propagate_one(ptc,
+                                      ecal.volume.inner,
+                                      self.detector.elements['field'].magnitude )
+        return    
+    
+    def simulate(self, ptcs, do_reconstruct = True):
         self.reset()
         self.ptcs = []
         smeared = []
@@ -198,12 +258,14 @@ class Simulator(object):
             if ptc.pdgid() == 22:
                 self.simulate_photon(ptc)
             elif abs(ptc.pdgid()) == 11:
-                smeared_ptc = self.smear_electron(ptc)
-                smeared.append(smeared_ptc)
+                self.propagate_electron(ptc)
+                #smeared_ptc = self.smear_electron(ptc)
+                #smeared.append(smeared_ptc)
                 # self.simulate_electron(ptc)
             elif abs(ptc.pdgid()) == 13:
-                smeared_ptc = self.smear_muon(ptc)
-                smeared.append(smeared_ptc)
+                self.propagate_muon(ptc)
+                #smeared_ptc = self.smear_muon(ptc)
+                #smeared.append(smeared_ptc)
                 # self.simulate_muon(ptc)
             elif abs(ptc.pdgid()) in [12,14,16]:
                 self.simulate_neutrino(ptc)
@@ -213,9 +275,19 @@ class Simulator(object):
                     continue
                 self.simulate_hadron(ptc)
             self.ptcs.append(ptc)
-        self.pfsequence = PFSequence(self.ptcs, self.detector, self.logger)
-        self.particles = copy.copy(self.pfsequence.pfreco.particles)
-        self.particles.extend(smeared)
+            #self.smeared =  smeared
+            self.pfinput = PFInput(self.ptcs) #collect up tracks, clusters etc ready for merging/reconstruction_muon(otc)        
+        if  do_reconstruct : #now optional, defaults to run this for backwards compatibility
+            self.pfsequence = PFSequence(self.ptcs, self.detector, self.logger)
+            self.particles = copy.copy(self.pfsequence.pfreco.particles)
+            #self.particles.extend(smeared)
+        
+        
+        #print "number of gen particles: ", len(ptcs)
+        #print "number of smeared particles: ", len(smeared)
+        #print "number of sim particles: ", len(self.ptcs)        
+        #print "number of rec (no smeared) particles: ", len(self.pfsequence.pfreco.particles)
+        #print "number of rec original inc smeared particles: ", len(self.particles)
         
 if __name__ == '__main__':
 

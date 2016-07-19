@@ -17,6 +17,9 @@ logging.shutdown()
 reload(logging)
 logging.basicConfig(level=logging.WARNING)
 
+# setting the random seed for reproducible results
+import random
+random.seed(0xdeadbeef)
 
 # input definition
 comp = cfg.Component(
@@ -34,38 +37,12 @@ source = cfg.Analyzer(
     Reader,
     mode = 'ee',
     gen_particles = 'GenParticle',
+    gen_vertices = 'GenVertex'
 )
 
-# Use a Filter to select stable gen particles for simulation
-# from the output of "source" 
-# help(Filter) for more information
-from heppy.analyzers.Filter import Filter
-gen_particles_stable = cfg.Analyzer(
-    Filter,
-    output = 'gen_particles_stable',
-    # output = 'particles',
-    input_objects = 'gen_particles',
-    filter_func = lambda x : x.status()==1 and x.pdgid() not in [12,14,16] and x.pt()>0.1
-)
+from heppy.test.papas_cfg import papas_sequence, detector, papas
 
-# configure the papas fast simulation with the CMS detector
-# help(Papas) for more information
-from heppy.analyzers.Papas import Papas
-from heppy.papas.detectors.CMS import CMS
-papas = cfg.Analyzer(
-    Papas,
-    instance_label = 'papas',
-    detector = CMS(),
-    gen_particles = 'gen_particles_stable',
-    sim_particles = 'sim_particles',
-    rec_particles = 'particles',
-    display_filter_func = lambda ptc: ptc.e()>1.,
-    display = False,
-    verbose = True
-)
-
-
-# Use a Filter to select leptons from the output of papas.
+# Use a Filter to select leptons from the output of papas simulation.
 # Currently, we're treating electrons and muons transparently.
 # we could use two different instances for the Filter module
 # to get separate collections of electrons and muons
@@ -75,25 +52,10 @@ leptons_true = cfg.Analyzer(
     Filter,
     'sel_leptons',
     output = 'leptons_true',
-    # output = 'leptons',
-    input_objects = 'particles',
+    input_objects = 'rec_particles',
     filter_func = lambda ptc: ptc.e()>10. and abs(ptc.pdgid()) in [11, 13]
 )
 
-# Applying a simple resolution and efficiency model to electrons and muons.
-# Indeed, papas simply copies generated electrons and muons
-# from its input gen particle collection to its output reconstructed
-# particle collection.
-# Setting up the electron and muon models is left to the user,
-# and the LeptonSmearer is just an example
-# help(LeptonSmearer) for more information
-from heppy.analyzers.examples.zh.LeptonSmearer import LeptonSmearer
-leptons = cfg.Analyzer(
-    LeptonSmearer,
-    'leptons',
-    output = 'leptons',
-    input_objects = 'leptons_true',
-)
 
 # Compute lepton isolation w/r other particles in the event.
 # help(LeptonAnalyzer) for more information
@@ -101,8 +63,8 @@ from heppy.analyzers.LeptonAnalyzer import LeptonAnalyzer
 from heppy.particles.isolation import EtaPhiCircle
 iso_leptons = cfg.Analyzer(
     LeptonAnalyzer,
-    leptons = 'leptons',
-    particles = 'particles',
+    leptons = 'leptons_true',
+    particles = 'rec_particles',
     iso_area = EtaPhiCircle(0.4)
 )
 
@@ -117,7 +79,7 @@ sel_iso_leptons = cfg.Analyzer(
     Filter,
     'sel_iso_leptons',
     output = 'sel_iso_leptons',
-    input_objects = 'leptons',
+    input_objects = 'leptons_true',
     # filter_func = relative_isolation
     filter_func = lambda lep : lep.iso.sumpt/lep.pt()<0.3 # fairly loose
 )
@@ -134,12 +96,23 @@ zeds = cfg.Analyzer(
 
 # Computing the recoil p4 (here, p_initial - p_zed)
 # help(RecoilBuilder) for more information
+sqrts = 240. 
+
 from heppy.analyzers.RecoilBuilder import RecoilBuilder
 recoil = cfg.Analyzer(
     RecoilBuilder,
+    instance_label = 'recoil',
     output = 'recoil',
-    sqrts = 240.,
+    sqrts = sqrts,
     to_remove = 'zeds_legs'
+) 
+
+missing_energy = cfg.Analyzer(
+    RecoilBuilder,
+    instance_label = 'missing_energy',
+    output = 'missing_energy',
+    sqrts = sqrts,
+    to_remove = 'rec_particles'
 ) 
 
 # Creating a list of particles excluding the decay products of the best zed.
@@ -148,7 +121,7 @@ from heppy.analyzers.Masker import Masker
 particles_not_zed = cfg.Analyzer(
     Masker,
     output = 'particles_not_zed',
-    input = 'particles',
+    input = 'rec_particles',
     mask = 'zeds_legs',
 
 )
@@ -163,6 +136,20 @@ jets = cfg.Analyzer(
     particles = 'particles_not_zed',
     fastjet_args = dict( njets = 2)  
 )
+
+from heppy.analyzers.ImpactParameter import ImpactParameter
+btag = cfg.Analyzer(
+    ImpactParameter,
+    jets = 'jets',
+    # num_IP = ("histo_stat_IP_ratio_bems.root","h_b"),
+    # denom_IP = ("histo_stat_IP_ratio_bems.root","h_u"),
+    # num_IPs = ("histo_stat_IPs_ratio_bems.root","h_b"),
+    # denom_IPs = ("histo_stat_IPs_ratio_bems.root","h_u"),
+    pt_min = 1, # pt threshold for charged hadrons in b tagging 
+    dxy_max = 2e-3, # 2mm
+    dz_max = 17e-2, # 17cm
+    detector = detector
+    )
 
 # Build Higgs candidates from pairs of jets.
 higgses = cfg.Analyzer(
@@ -198,23 +185,24 @@ tree = cfg.Analyzer(
     zeds = 'zeds',
     jets = 'jets',
     higgses = 'higgses',
-    recoil  = 'recoil'
+    recoil  = 'recoil',
+    misenergy = 'missing_energy'
 )
 
 # definition of a sequence of analyzers,
 # the analyzers will process each event in this order
-sequence = cfg.Sequence( [
-    source,
-    gen_particles_stable,
-    papas,
+sequence = cfg.Sequence( [source] )
+sequence.extend(papas_sequence)
+sequence.extend( [
     leptons_true,
-    leptons,
     iso_leptons,
     sel_iso_leptons,
     zeds,
     recoil,
+    missing_energy,
     particles_not_zed,
     jets,
+    btag,
     higgses,
     selection, 
     tree
@@ -275,6 +263,7 @@ if __name__ == '__main__':
                    nEvents=10,
                    nPrint=1,
                    timeReport=True)
+    
     simulation = None
     for ana in loop.analyzers: 
         if hasattr(ana, 'display'):
@@ -285,6 +274,8 @@ if __name__ == '__main__':
         detector = simulator.detector
     if iev is not None:
         process(iev)
+        #process(iev)
+        #process(iev)
     else:
         loop.loop()
         loop.write()

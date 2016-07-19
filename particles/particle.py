@@ -1,9 +1,8 @@
 import copy
 
 from p4 import P4
-from tlv.rootobj import RootObj
 
-class Particle(P4, RootObj):
+class Particle(P4):
     '''Interface for particles. 
     Make sure your code satisfies this interface.
     Specializations in cms, fcc, and tlv packages
@@ -43,4 +42,7 @@ class Particle(P4, RootObj):
             q = self.q(),
             p4 = super(Particle, self).__str__()
             )
+
+    def __repr__(self):
+        return str(self)
     
