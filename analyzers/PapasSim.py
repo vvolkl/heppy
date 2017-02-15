@@ -68,7 +68,7 @@ class PapasSim(Analyzer):
         pfsim_particles = self.simulator.ptcs
 
         #these are the particles before simulation
-        simparticles = sorted(pfsim_particles, key=P4.sort_key)
+        simparticles = sorted(pfsim_particles, key=P4.sort_key, reverse=True)
 
         setattr(event, self.simname, simparticles)
     
