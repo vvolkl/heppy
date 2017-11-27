@@ -6,7 +6,7 @@ from heppy.particles.tlv.resonance import Resonance2 as Resonance
 import pprint 
 import itertools
 
-mass = {23: 91, 25: 125}
+mass = {23: 91, 25: 125, 32:200}
 
 class ResonanceBuilder(Analyzer):
     '''Builds L{resonances<heppy.particles.tlv.resonance>}.
@@ -32,6 +32,17 @@ class ResonanceBuilder(Analyzer):
 
     @param pdgid: Pythia code for the target resonance. 
     '''
+
+    def clean(self, resonances):
+        """ Filters resonances according to some criteria. No-op in this implementation,
+            but may be overridden in derived classes.
+
+            @return resonances: the filtered list of resonances 
+        """
+        return resonances
+
+    def get_pdgid(self):
+        return self.cfg_ana.pdgid
     
     def process(self, event):
         '''Process the event
@@ -44,11 +55,17 @@ class ResonanceBuilder(Analyzer):
          - event.<self.cfg_ana.output>_legs: the two legs of the best resonance.
         '''
         legs = getattr(event, self.cfg_ana.leg_collection)
-        resonances = []
+        uncleaned_resonances = []
         for leg1, leg2 in itertools.combinations(legs,2):
-            resonances.append( Resonance(leg1, leg2, self.cfg_ana.pdgid) )
+            uncleaned_resonances.append( Resonance(leg1, leg2, self.get_pdgid()) )
+
+        resonances = self.clean(uncleaned_resonances)
         # sorting according to distance to nominal mass
-        nominal_mass = mass[self.cfg_ana.pdgid]
+        try:
+            nominal_mass = self.cfg_ana.nominal_mass
+        except AttributeError: # if not specified explicitly, try to look it up according to pdgid
+            nominal_mass = mass[self.get_pdgid()]
+
         resonances.sort(key=lambda x: abs(x.m()-nominal_mass))
         setattr(event, self.cfg_ana.output, resonances)
         # getting legs of best resonance

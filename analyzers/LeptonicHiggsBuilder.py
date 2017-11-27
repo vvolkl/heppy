@@ -5,25 +5,25 @@ from heppy.analyzers.ResonanceBuilder import ResonanceBuilder
 import pprint 
 import itertools
 
-class LeptonicZedBuilder(ResonanceBuilder):
-    '''Builds a list of Z resonances from an input lepton collection. 
+class LeptonicHiggsBuilder(ResonanceBuilder):
+    '''Builds a list of Higgs resonances from an input lepton collection. 
        Elements in this list consist in pairs of leptons. A given lepton can appear
        only in one pair of the list.
 
     Example:
 
-    from heppy.analyzers.LeptonicZedBuilder import LeptonicZedBuilder
+    from heppy.analyzers.LeptonicHiggsBuilder import LeptonicHiggsBuilder
     zeds = cfg.Analyzer(
-      LeptonicZedBuilder,
+      LeptonicHiggsBuilder,
       output = 'zeds',
       leptons = 'leptons',
     )
 
-    * output : resulting Z resonances are stored in this collection, 
-    sorted according to their distance to the nominal Z mass. The first 
+    * output : resulting Higgs resonances are stored in this collection, 
+    sorted according to their distance to the nominal Higgs mass. The first 
     resonance in this collection is thus the best one. 
     
-    Additionally, a collection zeds_legs (in this case) is created to contain the 
+    Additionally, a collection higgs_legs (in this case) is created to contain the 
     legs of the best resonance. 
 
     * leptons : collection of leptons that will be combined into resonances.
@@ -31,8 +31,9 @@ class LeptonicZedBuilder(ResonanceBuilder):
     '''
 
     def __init__(self, *args, **kwargs):
-        super(LeptonicZedBuilder, self).__init__(*args, **kwargs)
+        super(LeptonicHiggsBuilder, self).__init__(*args, **kwargs)
         self.cfg_ana.leg_collection = self.cfg_ana.leptons
+
 
     def get_pdgid(self):
         try:
