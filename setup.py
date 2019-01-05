@@ -105,6 +105,8 @@ setup(
     # data_files=[('my_data', ['data/data_file'])],
     data_files = [("doc", glob.glob("doc/*")),],
     scripts = glob.glob("bin/*"),
+    zip_safe = False,
+    include_package_data = True,
 
 
 
