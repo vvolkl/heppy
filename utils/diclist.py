@@ -11,14 +11,48 @@ class diclist( list ):
         super( diclist, self).__init__()
         # internal dictionary, will contain key -> index in list
         self.dico = {}
+        self.__indexed__keys = {}
 
     def add( self, key, value ):
         if isinstance(key, (int, long)):
             raise ValueError("key cannot be an integer")
         if key in self.dico:
             raise ValueError("key '{key}' already exists".format(key=key) )
-        self.dico[key] = len(self)
+        index = len(self)
+        self.dico[key] = index
+        self.__indexed__keys[index] = key
         self.append(value)
+
+##  This is complicated, need to re-index the two dictionaries...       
+##    def rm(self, key):
+##        if isinstance(key, (int, long)):
+##            raise ValueError("key cannot be an integer")
+##        if not key in self.dico:
+##            raise ValueError("key '{key}' does not exist".format(key=key) )
+##        index = self.dico[key]
+##        self.pop(index)
+##        del self.dico[key]
+##        self.__indexed__keys = dict()
+##        for key
+
+    def values(self):
+        '''dictionary signature. preserves ordering'''
+        return self
+    
+    def iteritems(self):
+        '''dictionary signature. preserves ordering'''
+        for index, value in enumerate(self):
+            yield self.__indexed__keys[index], value
+            
+    def keys(self):
+        '''dictionary signature. preserves ordering'''
+        keys = []
+        for index, value in enumerate(self):
+            keys.append(self.__indexed__keys[index])
+        return keys
+
+    def __setitem__(self, index, value):
+        self.add(index, value)
 
     def __getitem__(self, index):
         '''index can be a dictionary key, or an integer specifying 
@@ -33,12 +67,6 @@ class diclist( list ):
             # and return the corresponding value from the list
             return super(diclist, self).__getitem__( self.dico[index] )
             
-    def __setitem__(self, index, value):
-        '''These functions are quite risky...'''
-        try:
-            return super(diclist, self).__setitem__(index, value)
-        except TypeError as ValueError:
-            return super(diclist, self).__setitem__( self.dico[index], value )
             
 
     

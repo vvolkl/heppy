@@ -6,7 +6,7 @@ from heppy.particles.tlv.resonance import Resonance2 as Resonance
 import pprint 
 import itertools
 
-mass = {23: 91, 25: 125}
+mass = {23: 91, 24: 80.4, 25: 125}
 
 class ResonanceBuilder(Analyzer):
     '''Builds L{resonances<heppy.particles.tlv.resonance>}.
@@ -51,9 +51,3 @@ class ResonanceBuilder(Analyzer):
         nominal_mass = mass[self.cfg_ana.pdgid]
         resonances.sort(key=lambda x: abs(x.m()-nominal_mass))
         setattr(event, self.cfg_ana.output, resonances)
-        # getting legs of best resonance
-        legs = []
-        if len(resonances):
-            legs = resonances[0].legs
-        setattr(event, '_'.join([self.cfg_ana.output, 'legs']), legs)
-                

@@ -11,26 +11,42 @@ from geometry import VolumeCylinder
 import math
 import heppy.statistics.rrandom as random
 
-class ECAL(DetectorElement):
+def max_eta(inner_radius, inner_z, outer_z):
+    '''computes maximum eta of a calorimeter,
+    given the inner radius, the inner z, and the outer z.'''
+    mean_z = (inner_z + outer_z) / 2.
+    tantheta = inner_radius / mean_z
+    theta = math.atan(tantheta)
+    eta = -math.log(math.tan(theta/2.))
+    return eta
 
-    max_radius = 4.8
+class ECAL(DetectorElement):
+    '''CLD ECAL.
+    https://indico.cern.ch/event/638354/contributions/2626453/attachments/1478996/2292486/FCCeeDetDesMeeting.pdf
+    '''
+    
+    max_radius = 2.352
     min_radius = 2.15
-    max_z = 3.4
-    min_z = 1.8
+    max_z = 2.509
+    min_z = 2.307
 
     def __init__(self):
         depth = 0.25
         min_radius = self.__class__.min_radius
-        min_z = self.__class__.min_z
-        inner_endcap_radius = 0.25
-        self.maxeta = -math.log(math.tan(math.atan(inner_endcap_radius/1.7) / 2.))
+        inner_endcap_radius = 0.34
+        self.maxeta = max_eta(inner_endcap_radius,
+                              self.__class__.min_z,
+                              self.__class__.max_z)
         nX0 = 23  #CLIC CDR, page 70, value for CLIC_ILD
         nLambdaI = 1  # ibid
-        outer_radius = min_radius + depth
-        outer_z = min_z + depth
+        depth = self.__class__.max_z - self.__class__.min_z
         X0 = depth / nX0
         lambdaI = depth / nLambdaI
-        volume = VolumeCylinder('ecal', outer_radius, outer_z, min_radius, min_z)
+        volume = VolumeCylinder('ecal',
+                                self.__class__.max_radius,
+                                self.__class__.max_z,
+                                self.__class__.min_radius,
+                                self.__class__.min_z)
         mat = material.Material('ECAL', X0, lambdaI)
         # todo: recompute
         self.eta_junction = volume.inner.eta_junction()
@@ -74,15 +90,19 @@ class ECAL(DetectorElement):
     
 class HCAL(DetectorElement):
 
-    max_radius = 4.8
+    max_radius = 3.566
     min_radius = 2.4
-    max_z = 3.4
-    min_z = 1.8
+    max_z = 3.705
+    min_z = 2.539
     
     def __init__(self):
         volume = VolumeCylinder('hcal',
                                 self.__class__.max_radius, self.__class__.max_z,
                                 self.__class__.min_radius, self.__class__.min_z)
+        inner_endcap_radius = 0.34
+        self.maxeta = max_eta(inner_endcap_radius,
+                              self.__class__.min_z,
+                              self.__class__.max_z)
         # not sure about X0 and lambda_i, but these don't matter anyway
         mat = material.Material('HCAL', 0.018, 0.17)
         # resolution from CLIC CDR Fig. 6.11, 2nd hypothesis (simple software compensation)
@@ -108,7 +128,7 @@ class HCAL(DetectorElement):
     def acceptance(self, cluster):
         energy = cluster.energy
         eta = abs(cluster.position.Eta())
-        if eta < 2.76:  #TODO: check this value
+        if eta < self.maxeta:  #TODO: check this value
             return energy>1.
         else:
             return False
@@ -120,11 +140,14 @@ class HCAL(DetectorElement):
     
 class Tracker(DetectorElement):
    
+    # acceptance in radians. removing 10 degrees on both sides
+    # Emilia Leogrande, private communication
+    theta_max = 80. * math.pi / 180.
+    
     def __init__(self):
         super(Tracker, self).__init__('tracker',
                                       VolumeCylinder('tracker', ECAL.min_radius , ECAL.min_z),
                                       material.void)
-        self.theta_max = 75. * math.pi / 180.
         # Emilia Leogrande
         # using our definition of theta (equal to zero at eta=0)
         self.resmap = [(80.0, [0.00064001464571871076, 0.13554521466257508, 1.1091870672607593]),
@@ -148,7 +171,7 @@ class Tracker(DetectorElement):
         rnd = random.uniform(0,1)
         pt = track.p3().Pt()
         theta = abs(track.theta())
-        if theta < self.theta_max:
+        if theta < self.__class__.theta_max:
             if pt < 0.1:
                 return False
             elif pt < 0.3:
@@ -209,7 +232,7 @@ class CLIC(Detector):
         No information, cooking something up.
         '''
         if track.p3().Mag() > 5 and \
-           abs(track.theta()) < 80. * math.pi / 180.:
+           abs(track.theta()) < Tracker.theta_max:
             return random.uniform(0, 1) < 0.95
         else:
             return False
@@ -229,7 +252,7 @@ class CLIC(Detector):
         The CLIC CDR gives 99% for E > 7.5GeV and polar angle > 10 degrees
         '''
         return track.p3().Mag() > 7.5 and \
-               abs(track.theta()) < 80. * math.pi / 180.
+               abs(track.theta()) < Tracker.theta_max
             
     def muon_resolution(self, track):
         '''returns the relative muon resolution.
