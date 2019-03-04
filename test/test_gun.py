@@ -9,14 +9,13 @@ logging.getLogger().setLevel(logging.ERROR)
 import heppy.statistics.rrandom as random
 
 import heppy.framework.context as context
-if context.name != 'bare':
-    from analysis_ee_ZZ_resmatch_cfg import config
-    from heppy.framework.looper import Looper
-    from ROOT import TFile
+if context.name == 'fcc':
 
+    from gun_papas_cfg import config
+    from heppy.framework.looper import Looper
 
 @unittest.skipIf(context.name=='bare', 'ROOT not available')
-class TestAnalysis_ee_ZZ_resmatch(unittest.TestCase):
+class TestAnalysis_gun(unittest.TestCase):
 
     def setUp(self):
         random.seed(0xdeadbeef)
@@ -28,19 +27,15 @@ class TestAnalysis_ee_ZZ_resmatch(unittest.TestCase):
         shutil.rmtree(self.outdir)
         logging.disable(logging.NOTSET)
 
-    def test_1(self):
+    def test_gun(self):
+        '''test that the particle gun runs
         '''
-        '''
-        fname = '/'.join([os.environ['HEPPY'],
-                          'test/data/ee_ZZ_4mu.root'])
-        config.components[0].files = [fname]
-        looper = Looper( self.outdir, config,
-                         nEvents=50,
-                         nPrint=0 )
-        looper.loop()
-        looper.write()
-    
-
+        self.looper = Looper( self.outdir, config,
+                              nEvents=100,
+                              nPrint=0 )
+        self.looper.loop()
+        self.looper.write()
+        
 
 if __name__ == '__main__':
 
