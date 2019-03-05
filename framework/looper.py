@@ -86,6 +86,7 @@ class Looper(object):
                   (if set to None, nothing of all this happens)
         """
 
+
         self.config = config
         self.name = self._prepareOutput(name)
         self.outDir = self.name
@@ -164,14 +165,14 @@ class Looper(object):
         self.setup = Setup(config, services)
 
         ######### Save processing information to output directory
-
-        # save the versions
-        if self.config.versions:
+        
+        if hasattr(self.config, 'versions'):
             self.config.versions.write_yaml('/'.join([self.outDir,
                                                       'software.yaml']))        
         # remove versions from the config as it can't be pickled
-        config_no_versions = copy.copy(self.config)
-        delattr(config_no_versions, 'versions')
+        #config_no_versions = copy.copy(self.config)
+        config_no_versions = self.config
+        #delattr(config_no_versions, 'versions')
         
         # save the config
         pck_fname = '/'.join([self.outDir, 'config.pck'])
