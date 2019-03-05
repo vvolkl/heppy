@@ -1,4 +1,5 @@
 import math
+import copy
 from p4 import P4
 
 def group_pdgid(ptc):
@@ -16,7 +17,7 @@ def group_pdgid(ptc):
     else:
         return pdgid
 
-class JetComponent(list):
+class JetComponent(object):
     '''L{Jet} constituent particle information.
     
     In addition to the values returned by the various methods of this class,
@@ -30,6 +31,8 @@ class JetComponent(list):
         self._pt = 0
         self._num = 0
         self._pdgid = pdgid
+        self._q = 0
+        self._particles = list()
 
     def pdgid(self):
         '''@return: the pdgid'''
@@ -47,6 +50,14 @@ class JetComponent(list):
         '''@return: the number of particles with this pdgid'''
         return self._num
     
+    def q(self):
+        '''@return: total charge of the particles with this pdgid'''
+        return self._q
+    
+    def particles(self):
+        '''@return list of particles'''
+        return self._particles
+    
     def append(self, ptc):
         '''Append a new particle, incrementing all quantities'''
         pdgid = group_pdgid(ptc)
@@ -54,10 +65,14 @@ class JetComponent(list):
             self._pdgid = pdgid
         elif pdgid!=self._pdgid:
             raise ValueError('cannot add particles of different type to a component')
-        super(JetComponent, self).append(ptc)
+        self._particles.append(ptc)
         self._e += ptc.e()
         self._pt += ptc.pt()
+        self._q += ptc.q()
         self._num += 1
+
+    def sort(self, *args, **kwargs):
+        self._particles.sort(*args, **kwargs)
 
     def __str__(self):
         header = '\t\tpdgid={pdgid}, n={num:d}, e={e:3.1f}, pt={pt:3.1f}'.format(
@@ -66,15 +81,24 @@ class JetComponent(list):
             e = self.e(),
             pt = self.pt()
         )
-        ptcs = []
-        for ptc in self:
-            ptcs.append('\t\t\t{particle}'.format(particle=str(ptc)))
         result = [header]
-        result.extend(ptcs)
+        if hasattr(self, '_particles'):
+            # not there if the component was deepcopied, see below
+            ptcs = []
+            for ptc in self._particles:
+                ptcs.append('\t\t\t{particle}'.format(particle=str(ptc)))
+            result.extend(ptcs)
         return '\n'.join(result)
+    
+    def __deepcopy__(self, memodict={}):
+        newone = type(self).__new__(type(self))
+        for attr, val in self.__dict__.iteritems():
+            if attr not in ['_particles']:
+                setattr(newone, attr, copy.deepcopy(val, memodict))
+        return newone
         
  
-class JetConstituents(dict):
+class JetConstituents(object):
     '''Dictionary of constituents.
     
     The dictionary is indexed by the following integer keys:
@@ -92,13 +116,14 @@ class JetConstituents(dict):
         all_pdgids = [211, 22, 130, 11, 13, 
                       1, 2 #HF had and em 
                       ]
+        self._components = dict()
         for pdgid in all_pdgids:
-            self[pdgid] = JetComponent(pdgid)
+            self._components[pdgid] = JetComponent(pdgid)
         self.particles = []
 
     def validate(self, jet_energy, tolerance = 1e-2):
         '''Calls pdb if total component energy != jet energy'''
-        tote = sum([comp.e() for comp in self.values()]) 
+        tote = sum([comp.e() for comp in self._components.values()]) 
         if abs(jet_energy-tote)>tolerance: 
             import pdb; pdb.set_trace()
     
@@ -106,7 +131,7 @@ class JetConstituents(dict):
         '''Appends a particle to the list of constituents.'''
         pdgid = group_pdgid(ptc)
         try:
-            self[pdgid].append(ptc)
+            self._components[pdgid].append(ptc)
         except KeyError:
             msg = '''Particle
             {ptc}
@@ -118,14 +143,32 @@ class JetConstituents(dict):
             raise ValueError(msg)
         self.particles.append(ptc)
             
+    def n_particles(self):
+        return sum(comp.num() for comp in self._components.values())
+    
+    def n_charged_hadrons(self):
+        return self._components[211].num()
+            
+    def __getattr__(self, attr):
+        return getattr(self._components, attr)
+    
+    def __getitem__(self, item):
+        return self._components[item]
+            
     def sort(self):
         '''Sort constituent particles by decreasing energy.'''
-        for ptcs in self.values():
+        for ptcs in self._components.values():
             ptcs.sort(key = lambda ptc: ptc.e(), reverse=True)
 
     def __str__(self):
-        return '\n'.join(map(str, self.values()))
+        return '\n'.join(map(str, self._components.values()))
 
+    def __deepcopy__(self, memodict={}):
+        newone = type(self).__new__(type(self))
+        for attr, val in self.__dict__.iteritems():
+            if attr not in ['particles']:
+                setattr(newone, attr, copy.deepcopy(val, memodict))
+        return newone
 
 class JetTags(dict):
     '''Dictionary of tags attached to a jet.
@@ -168,6 +211,7 @@ class Jet(P4):
         super(Jet, self).__init__(*args, **kwargs)
         self.constituents = None
         self.tags = JetTags()
+        self._q = None
 
     def pdgid(self):
         '''needed to behave as a particle.
@@ -177,11 +221,9 @@ class Jet(P4):
         return 0
 
     def q(self):
-        '''Needed to behave as a particle.
-        
-        @return 0
-        '''
-        return 0
+        if self._q is None:
+            self._q = sum(const.q() for const in self.constituents.values())
+        return self._q
     
     def __str__(self):
         tmp = '{className} : {p4}, tags={tags}'

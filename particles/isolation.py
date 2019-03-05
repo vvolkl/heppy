@@ -51,6 +51,13 @@ class IsolationInfo(object):
         self.sume += ptc.e()
         self.num += 1 
 
+    def rm_particle(self, ptc):
+        '''Remove a particle and update counters (e.g. for FSR recovery)'''
+        self.particles.remove(ptc)
+        self.sumpt -= ptc.pt()
+        self.sume -= ptc.e()
+        self.num -= 1
+
     def __iadd__(self, other):
         self.particles.extend(other.particles)
         self.sumpt += other.sumpt
@@ -112,15 +119,13 @@ class IsolationComputer(object):
                 continue
             is_on = False
             for area in self.on_areas:
-                if area.is_inside(lepton.eta(), lepton.phi(),
-                                  ptc.eta(), ptc.phi() ):
+                if area.is_inside(lepton, ptc):
                     is_on = True
                     break
             if not is_on:
                 continue        
             for area in self.off_areas:
-                if area.is_inside(lepton.eta(), lepton.phi(),
-                                  ptc.eta(), ptc.phi() ):
+                if area.is_inside(lepton, ptc):
                     is_on = False
                     break
             if is_on:

@@ -56,9 +56,13 @@ class IsolationAnalyzer(Analyzer):
         super(IsolationAnalyzer, self).beginLoop(setup)
         # now using same isolation definition for all pdgids
         self.iso_computers = dict()
+        off_iso_areas = None
+        if hasattr(self.cfg_ana, 'off_iso_area'):
+            off_iso_areas = [self.cfg_ana.off_iso_area]
         for pdgid in pdgids:
             self.iso_computers[pdgid] = IsolationComputer(
                 [self.cfg_ana.iso_area],
+                off_areas=off_iso_areas, 
                 label='iso{pdgid}'.format(pdgid=str(pdgid))
             )
             
@@ -93,7 +97,7 @@ class IsolationAnalyzer(Analyzer):
           - photon -> 22
           - other -> neutral hadron
         '''
-        if ptc.pdgid() in [11,13]:
+        if abs(ptc.pdgid()) in [11,13]:
             return ptc.pdgid() 
         elif ptc.q(): 
             return ptc.q() * 211
