@@ -1,12 +1,12 @@
 
-export HEPPY=$PWD
-export PATH=$HEPPY/bin:$PATH
-export PYTHONPATH=$PWD/..:$PYTHONPATH
 
-# set up executable directory
-# cp scripts/*.py bin/
-# cp scripts/heppy bin/
-chmod +x bin/*.py 
-chmod +x bin/heppy
+source /cvmfs/fcc.cern.ch/sw/views/releases/externals/94.1.0/x86_64-slc6-gcc62-opt/setup.sh
+
+
+export HEPPY=$PWD/heppy
+export PATH=$HEPPY/bin:$PATH
+export PYTHONPATH=$PWD:$PYTHONPATH
+
+
 
 
