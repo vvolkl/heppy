@@ -91,12 +91,17 @@ else
 fi"""
    cpCmd=dirCopy
 
+#export PYTHONPATH="{fix}{pythonpath}"
+#           copy=cpCmd, fix='${PYTHONPATH}:',
+#           pythonpath=os.getcwd(), fccswpath=os.environ['FCCSWPATH'])
+#source {fccswpath}/init_fcc_stack.sh  
+
    script = """#!/bin/bash
 unset LD_LIBRARY_PATH
 unset PYTHONHOME
 export PYTHONPATH={pythonpath}
 echo 'copying job dir to worker'
-source {fccswpath}/init_fcc_stack.sh  
+source {fccswpath}/setup.sh
 cd $HEPPY
 source ./init.sh
 echo 'environment:'
@@ -114,8 +119,8 @@ echo
 {copy}
 """.format(looper=looper.__file__,
            heppy_option_str=heppy_option_str, 
-           copy=cpCmd, 
-           pythonpath=os.getcwd(), fccswpath=os.environ['FCCSWPATH'])
+           copy=cpCmd,
+           pythonpath=os.getcwd(), fccswpath=os.environ['FCCVIEW'])
 
    return script
 

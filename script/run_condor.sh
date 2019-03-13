@@ -38,14 +38,13 @@ fi;
 scriptName=${1:-./batchScript.sh}
 
 cat > $jobdesc <<EOF
-Universe = vanilla
 Executable = ${prefix}${scriptName}
 Log        = ${prefix}condor_job_\$(ProcId).log
 Output     = ${prefix}condor_job_\$(ProcId).out
 Error      = ${prefix}condor_job_\$(ProcId).error
 getenv      = True
 environment = "LS_SUBCWD=${here}"
-request_memory = 2000
+request_memory = 2G
 requirements = (OpSysAndVer =?= "SLCern6")
 EOF
 
