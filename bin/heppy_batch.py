@@ -91,11 +91,6 @@ else
 fi"""
    cpCmd=dirCopy
 
-#export PYTHONPATH="{fix}{pythonpath}"
-#           copy=cpCmd, fix='${PYTHONPATH}:',
-#           pythonpath=os.getcwd(), fccswpath=os.environ['FCCSWPATH'])
-#source {fccswpath}/init_fcc_stack.sh  
-
    script = """#!/bin/bash
 unset LD_LIBRARY_PATH
 unset PYTHONHOME

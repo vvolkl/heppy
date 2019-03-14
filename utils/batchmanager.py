@@ -45,13 +45,10 @@ class BatchManager:
                                 help="create jobs, but does not submit the jobs.")
         self.parser_.add_option("-b", "--batch", dest="batch",
                                 help="""batch command to submit job. 
-                                    ==> OLD!!!! LSF submission to a queue, e.g. 8nh:
-                                          'bsub -q 8nh < ./batchScript.sh'. You can also use 'nohup < ./batchScript.sh &' to run locally.
                                     ==> HTCondor submission using HTCondor internal files transfer
                                     ==> with max 240 minutes of wall clock runtime:
                                           './run_condor.sh -t 240' 
                                     The default is '%default'.""",
-                                #default="bsub -q 8nh < ./batchScript.sh")      
                                 default="./run_condor.sh -t 240")
         self.parser_.add_option( "--option",
                                 dest="extraOptions",
@@ -256,7 +253,6 @@ class BatchManager:
 
         '''Return "LXPUS", "PSI", "NAF", "LOCAL", or None,
 
-        "LXPLUS(LSF)": batch command is bsub, and logged on lxplus
         "LXPLUS"     : batch command is condor, and logged on lxplus
         "PSI"        : batch command is qsub, and logged to t3uiXX
         "NAF"        : batch command is qsub, and logged on naf
@@ -273,13 +269,8 @@ class BatchManager:
 
         batchCmd = batch.split()[0]
         
-        if batchCmd == 'bsub':
-            print 'running on LSF : %s from %s' % (batchCmd, hostName)
-            err = "not workable any more -> NO JOBS SUBMITTED !!! use CONDOR"
-            raise ValueError( err )
-
-        elif batchCmd.find("run_condor.sh")>=0:
-            if not onLxplus: # not sure about this ??
+        if 'run_condor.sh' in batchCmd:
+            if not onLxplus:
                 err = 'Cannot run %s on %s' % (batchCmd, hostName)
                 raise ValueError( err )
             else:

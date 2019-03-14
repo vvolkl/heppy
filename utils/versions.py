@@ -1,5 +1,5 @@
 import modulefinder
-#import git
+import git
 import yaml
 import sys
 import os
@@ -24,9 +24,9 @@ class Versions(object):
 #        finder.report()
         self.tracked = dict()
         processed = []
-        #for key, mod in finder.modules.iteritems():
-        #    #if mod.__path__ and os.environ['USER'] in mod.__path__[0]:
-        #    self._analyze(key, mod)
+        for key, mod in finder.modules.iteritems():
+            #if mod.__path__ and os.environ['USER'] in mod.__path__[0]:
+            self._analyze(key, mod)
 
     def _analyze(self, key, module):
         info = dict()
