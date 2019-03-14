@@ -18,3 +18,33 @@ Table of contents:
 
 Support & feedback: [https://github.com/cbernet]()
 
+New CONDOR batch :
+-----------------
+submit example :
+heppy_batch.py -o Outdir FCChhAnalyses/FCChh/tttt/analysis.py -b 'run_condor.sh --bulk Outdir -f microcentury' --nevent 1000
+-> in this example, CONDOR will look at all directories (could be Chunk too) in Outdir (--bulk Outdir) and run jobs for all of them into a single job. For example here, 10 jobs are coming from FCChhAnalyses/FCChh/tttt/analysis.py. And each job wii be run on 1000 evenmts.
+
+[djamin@lxplus037 heppy]$ condor_q
+
+
+-- Schedd: bigbird09.cern.ch : <188.185.71.142:9618?... @ 03/05/19 15:13:52
+OWNER  BATCH_NAME        SUBMITTED   DONE   RUN    IDLE  TOTAL JOB_IDS
+djamin CMD: batchScri   3/5  15:05      4      6      _     10 594302.1-9
+
+
+run_condor.sh has been added in the new script/ directory
+
+Instead of flavour (-f), it is possible to use maxruntime (unit = minute) : -t 60
+
+Predefined timing jobs are done from flavour :
+ 20 mins -> espresso
+ 1h -> microcentury
+ 2h -> longlunch
+ 8h -> workday
+ 1d -> tomorrow
+ 3d -> testmatch
+ 1w -> nextweek
+
+If job fails, can resubmit each failed job with :
+heppy_check.py Outdir/*Chunk* -b 'run_condor.sh -f microcentury'
+
