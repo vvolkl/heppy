@@ -48,3 +48,10 @@ Predefined timing jobs are done from flavour :
 If job fails, can resubmit each failed job with :
 heppy_check.py Outdir/*Chunk* -b 'run_condor.sh -f microcentury'
 
+FCC actually have their own quota. To use it, you need to get yourself added to the egroup:
+ 
+fcc-experiments-comp
+ 
+Then you can add the following to your submit file:
+ 
++AccountingGroup = "group_u_FCC.local_gen"
