@@ -1,4 +1,7 @@
 *.pyc
+*.png
+*.out
+*.yaml
 *.root
 #*
 *~
