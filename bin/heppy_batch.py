@@ -92,18 +92,8 @@ fi"""
    cpCmd=dirCopy
 
    script_old = """#!/bin/bash
-unset LD_LIBRARY_PATH
-unset PYTHONHOME
-export PYTHONPATH={pythonpath}
-echo 'copying job dir to worker'
-source {fccswpath}/init_fcc_stack.sh
 cd $HEPPY
 source ./init.sh
-echo 'environment:'
-echo
-env | sort
-echo
-which python
 cd -
 cp -rf $LS_SUBCWD .
 ls
