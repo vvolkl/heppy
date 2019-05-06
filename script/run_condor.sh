@@ -37,15 +37,19 @@ fi;
 
 scriptName=${1:-./batchScript.sh}
 
+# SLCern6 -> CentOS7 when ready
 cat > $jobdesc <<EOF
-Executable = ${prefix}${scriptName}
-Log        = ${prefix}condor_job_\$(ProcId).log
-Output     = ${prefix}condor_job_\$(ProcId).out
-Error      = ${prefix}condor_job_\$(ProcId).error
-getenv      = True
-environment = "LS_SUBCWD=${here}"
+Executable     = ${prefix}${scriptName}
+Log            = ${prefix}condor_job_\$(ProcId).log
+Output         = ${prefix}condor_job_\$(ProcId).out
+Error          = ${prefix}condor_job_\$(ProcId).error
+getenv         = True
+environment    = "LS_SUBCWD=${here}"
 request_memory = 2G
-requirements = (OpSysAndVer =?= "SLCern6")
+requirements   = ( (OpSysAndVer =?= "SLCern6") && (Machine =!= LastRemoteHost) )
+on_exit_remove = (ExitBySignal == False) && (ExitCode == 0)
+max_retries    = 3
++AccountingGroup = "group_u_FCC.local_gen"
 EOF
 
 [[ "${flavour}" != "" ]] && echo "+JobFlavour = \"${flavour}\"" >> $jobdesc

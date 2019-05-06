@@ -9,4 +9,3 @@ export PYTHONPATH=$PWD/..:$PYTHONPATH
 chmod +x bin/*.py 
 chmod +x bin/heppy
 
-

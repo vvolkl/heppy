@@ -91,12 +91,12 @@ else
 fi"""
    cpCmd=dirCopy
 
-   script = """#!/bin/bash
+   script_old = """#!/bin/bash
 unset LD_LIBRARY_PATH
 unset PYTHONHOME
 export PYTHONPATH={pythonpath}
 echo 'copying job dir to worker'
-source {fccswpath}/setup.sh
+source {fccswpath}/init_fcc_stack.sh
 cd $HEPPY
 source ./init.sh
 echo 'environment:'
@@ -107,7 +107,7 @@ which python
 cd -
 cp -rf $LS_SUBCWD .
 ls
-cd `find . -type d | grep /`
+cd `find . -type d | grep _pp_`
 echo 'running'
 python {looper} config.pck {heppy_option_str}
 echo
@@ -115,7 +115,57 @@ echo
 """.format(looper=looper.__file__,
            heppy_option_str=heppy_option_str, 
            copy=cpCmd,
-           pythonpath=os.getcwd(), fccswpath=os.environ['FCCVIEW'])
+           pythonpath=os.getcwd(), fccswpath=os.environ['FCCSWPATH'])
+
+# IMPORTANT -> need to make safer get back of the files with line :
+# cd `find . -type d | grep _pp_`
+# intially it was :
+# cd `find . -type d | grep /`
+# but condor generates var and tmp directorirs which makes this command not working
+# -> and job fails as it cannot get back the output files/dirs
+
+
+# new setup :
+# -----------
+
+#  add these lines in init.sh
+#export FCCEDM="unused"
+#export PODIO="unused"
+#export FCCPHYSICS="unused"
+#export FCCSWPATH="unused"
+
+# the script to use and comment old above :
+#   script_new = """#!/bin/bash
+#unset LD_LIBRARY_PATH
+#unset PYTHONHOME
+#export PYTHONPATH={pythonpath}
+#echo 'copying job dir to worker'
+#source {fccswpath}/setup.sh
+#cd $HEPPY
+#source ./init.sh
+#export FCCEDM="unused"
+#export PODIO="unused"
+#export FCCPHYSICS="unused"
+#echo 'environment:'
+#echo
+#env | sort
+#echo
+#which python
+#cd -
+#cp -rf $LS_SUBCWD .
+#ls
+#cd `find . -type d | grep _pp_`
+#echo 'running'
+#python {looper} config.pck {heppy_option_str}
+#echo
+#{copy}
+#""".format(looper=looper.__file__,
+#           heppy_option_str=heppy_option_str,
+#           copy=cpCmd,
+#           pythonpath=os.getcwd(), fccswpath=os.environ['FCCVIEW'])
+
+   script = script_old
+   #script = script_new
 
    return script
 
