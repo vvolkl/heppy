@@ -18,7 +18,7 @@ if context.name == 'fcc':
 class TestAnalysis_gun(unittest.TestCase):
 
     def setUp(self):
-        #random.seed(0xdeadbeef)
+        random.seed(0xdeadbeef)
         self.outdir = tempfile.mkdtemp()
         import logging
         logging.disable(logging.CRITICAL)
